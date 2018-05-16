@@ -115,7 +115,7 @@ export class TgramClient implements ITgramClient {
     return Date.now() - this.lastUpdatesTime > 60 * 1000;
   }
 
-  protected updatesGetState(channelID) {
+  protected updatesGetStateChannel(channelID) {
     const run = () =>
       setTimeout(async () => {
         try {
@@ -130,7 +130,24 @@ export class TgramClient implements ITgramClient {
         } finally {
           run();
         }
-      }, 500);
+      }, 1500);
+    run();
+  }
+
+  protected updatesGetState() {
+    const run = () =>
+      setTimeout(async () => {
+        try {
+          if (isDebug) {
+            console.log("ping");
+          }
+          await this.client("updates.getState", {});
+        } catch (e) {
+          console.log("err", e);
+        } finally {
+          run();
+        }
+      }, 1000); //15s, may be flood
     run();
   }
 
@@ -142,8 +159,10 @@ export class TgramClient implements ITgramClient {
     this.channelTargetID = channelTargetID;
 
     for (let channelID of this.subscribeChannelIDs) {
-      this.updatesGetState(channelID);
+      this.updatesGetStateChannel(channelID);
     }
+
+    this.updatesGetState();
 
     // console.log(channelTargetID, channelIDs);
 
@@ -205,6 +224,9 @@ export class TgramClient implements ITgramClient {
 
     let ids = _.map(differenceResult.new_messages, (mess: Message) => +mess.id);
 
+    if (_.size(ids) == 0) {
+      return;
+    }
     await this.fwdToChannel(channelID, this.channelTargetID, ids);
   }
 
@@ -226,6 +248,12 @@ export class TgramClient implements ITgramClient {
       console.log("messages.forwardMessages", fromChannelID, toChID, postIds);
     }
 
+    let len = postIds.length;
+    let randomIDs = [];
+    for (let i = 0; i < len; i++) {
+      randomIDs.push([nextRandomInt(0xffffffff), nextRandomInt(0xffffffff)]);
+    }
+
     let res = await this.client("messages.forwardMessages", {
       from_peer: {
         _: "inputPeerChannel",
@@ -240,11 +268,15 @@ export class TgramClient implements ITgramClient {
 
       id: postIds,
 
-      random_id: [Date.now()]
+      random_id: randomIDs
     });
 
     if (isDebug) {
       console.log("Send ok", res);
     }
   }
+}
+
+function nextRandomInt(maxValue) {
+  return Math.floor(Math.random() * maxValue);
 }
