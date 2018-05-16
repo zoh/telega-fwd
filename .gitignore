@@ -1,0 +1,15 @@
+.idea
+
+.env
+.env.dev
+node_modules
+res
+res2
+res3
+res.json
+
+db/*.db
+
+storage/storage.json
+
+*.log

@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+
+set -a; source .env.dev;
+NODE_ENV=test DEBUG=true npm start

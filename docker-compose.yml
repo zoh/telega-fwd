@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  telega:
+    build:
+      context: ./
+    stdin_open: true
+    tty: true
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+    - ${PWD}/storage:/usr/src/app/storage
+
