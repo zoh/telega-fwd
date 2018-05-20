@@ -17,7 +17,8 @@ if (cluster.isMaster) {
   cluster.on('exit', (worker, code, signal) => {
     console.log(`worker ${worker.process.pid} died`, code, signal);
 
-    if (code > 0) {
+    if (code > 0 || signal == 'SIGKILL') {
+      console.log('fork new worker');
       cluster.fork()
     }
   });
@@ -66,7 +67,8 @@ if (cluster.isMaster) {
     wasConnected = true;
 
     setInterval(() => {
-      if (tgClient.isSoOldUpdate()) {
+      const t = tgClient.isSoOldUpdate();
+      if (t) {
         throw 'has not been updated for a long time';
       }
     }, 15000)

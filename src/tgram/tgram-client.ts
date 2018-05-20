@@ -108,11 +108,12 @@ export class TgramClient implements ITgramClient {
     return res;
   }
 
-  protected lastUpdatesTime: number;
+  protected lastUpdatesTime: number = Date.now();
 
-  public isSoOldUpdate() {
+  public isSoOldUpdate(): boolean {
     // 1 min
-    return Date.now() - this.lastUpdatesTime > 60 * 1000;
+    const t = Date.now() - this.lastUpdatesTime;
+    return t > 60 * 1000;
   }
 
   protected updatesGetStateChannel(channelID) {
@@ -128,6 +129,7 @@ export class TgramClient implements ITgramClient {
         } catch (e) {
           console.log("err", e);
         } finally {
+          this.lastUpdatesTime = Date.now();
           run();
         }
       }, 1500);
@@ -163,36 +165,6 @@ export class TgramClient implements ITgramClient {
     }
 
     this.updatesGetState();
-
-    // console.log(channelTargetID, channelIDs);
-
-    /*this.client.bus.untypedMessage.observe(async (event: EventUpdate) => {
-     const mess = event.message;
-
-     if (isDebug) {
-     await this.messagesStore.saveMsg(event);
-     }
-
-     if (mess.updates) {
-     _.forEach(
-     _.filter(mess.updates, (u: Update) => u._ == updateNewChannelMessage),
-     async updateMess => {
-     if (updateMess && updateMess.message) {
-     if (
-     _.indexOf(channelIDs, updateMess.message.to_id.channel_id) > -1
-     ) {
-     // пробуем переправить в канал
-     await this.fwdToChannel(
-     updateMess.message.to_id.channel_id,
-     channelTargetID,
-     updateMess.message.id
-     );
-     }
-     }
-     }
-     );
-     }
-     });*/
   }
 
   protected channelToPTS: Map<number, number> = new Map();
