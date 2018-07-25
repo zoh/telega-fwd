@@ -28,7 +28,7 @@ export const getCfgApp = (): CfgApp => {
     if (!ch) {
       break;
     }
-    channels.push(ch.trim())
+    channels.push(ch.trim().replace(/'/g, ''))
   }
 
   console.log('All channels for subscribe', channels);
@@ -50,22 +50,6 @@ export const getCfgApp = (): CfgApp => {
     channel_target,
   }
 };
-
-
-export type CfgApi = {
-  layer: number;
-  initConnection: number;
-  api_id: number;
-}
-
-export const getCfgApi = (): CfgApi => {
-  return {
-    layer: 57,
-    initConnection: 0x69796de9,
-    api_id: Number(process.env.API_ID),
-  }
-};
-
 
 // db
 export const LOGGIN_STORE_DB = process.env.LOGGIN_STORE_DB || './db/logging.db';

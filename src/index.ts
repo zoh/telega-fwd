@@ -1,13 +1,12 @@
-import {getCfgApi, getCfgApp, isDebug} from "./config";
+import {getCfgApp, isDebug} from "./config";
 import {TgramClient} from "./tgram/tgram-client";
 import * as _ from "lodash";
 import logger from "./logger";
 import rootStore from "./store/root";
 import {timeout} from "./utils";
-import * as cluster from 'cluster';
+import * as cluster from "cluster";
 
 const config = getCfgApp();
-const api = getCfgApi();
 
 
 if (cluster.isMaster) {
@@ -35,7 +34,7 @@ if (cluster.isMaster) {
   }, 2 * 60 * 1000);
 
   (async function () {
-    const tgClient = new TgramClient(config, api, rootStore.messagesStore);
+    const tgClient = new TgramClient(config, rootStore.messagesStore);
 
     // 5sec timeout
     await timeout(2000);

@@ -1,10 +1,11 @@
-import { CfgApi, CfgApp, isDebug } from "../config";
-import MTProto from "telegram-mtproto";
-import Storage from "mtproto-storage-fs";
+import { CfgApp, isDebug } from "../config";
+import * as MtpProxy from "telejs";
 import * as readline from "readline";
 import * as _ from "lodash";
 import { IMessagesStore } from "../store/messages";
 import logger from "../logger";
+import * as fs from "fs";
+import { timeout } from "../utils";
 
 // const updateNewChannelMessage = "updateNewChannelMessage";
 
@@ -15,89 +16,77 @@ export interface ITgramClient {
 }
 
 export class TgramClient implements ITgramClient {
-  public client;
-  protected storage: Storage;
-
   protected messagesStore: IMessagesStore;
 
-  constructor(
-    private cfgApp: CfgApp,
-    api: CfgApi,
-    messagesStore: IMessagesStore
-  ) {
-    const server = {
-      webogram: true,
-      dev: cfgApp.dev
-    };
-
-    const app = {
-      storage: new Storage(cfgApp.storagePath)
-    };
-
-    this.storage = app.storage;
-    this.client = MTProto({ server, api, app });
+  constructor(private cfgApp: CfgApp, messagesStore: IMessagesStore) {
     this.messagesStore = messagesStore;
   }
 
   async init() {
-    if (!await this.storage.get("signedin")) {
-      console.log("not signed in");
+    // считываем сразу файш
+    let resolveFile = null;
+    const pathFile = this.cfgApp.storagePath;
+    //
+    if (fs.existsSync(pathFile)) {
+      const res = fs.readFileSync(pathFile, "utf8");
+      resolveFile = Promise.resolve(res);
+    }
 
+    await MtpProxy.init(
+      state =>
+        new Promise((resolve, reject) => {
+          fs.writeFile(pathFile, state, "utf8", err => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            resolve();
+          });
+        }),
+      resolveFile ? () => resolveFile : null,
+      "info"
+    );
+    await timeout();
+
+    const isAuth = !!resolveFile;
+
+    console.log("IsAuth?", isAuth);
+    console.log("set DC");
+    await MtpProxy.mtpGetNetworker(2);
+    await timeout();
+
+    if (!isAuth) {
       await this.login();
-
-      console.log("signed in successfully");
-      this.storage.set("signedin", true);
-    } else {
-      console.log("already signed in");
     }
   }
 
   async login() {
-    const client = this.client;
     const phoneNum = this.cfgApp.phoneNumber;
 
-    const { phone_code_hash } = await client("auth.sendCode", {
-      phone_number: phoneNum,
-      current_number: true,
-      api_id: this.cfgApp.apiID,
-      api_hash: this.cfgApp.apiHash
+    console.log("Need auth!");
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
     });
 
-    const phone_code = await this.askForCode();
-    console.log(`Your code: ${phone_code}`);
-
-    const { user } = await client("auth.signIn", {
-      phone_number: phoneNum,
-      phone_code_hash: phone_code_hash,
-      phone_code: phone_code
-    });
-    console.log("signed as ", user);
-  }
-
-  // This function will stop execution of the program until you enter the code
-  // that is sent via SMS or Telegram.
-  async askForCode() {
-    return new Promise(resolve => {
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
+    const codeInputPromise = () =>
+      new Promise(resolve => {
+        rl.question("Code? ", code => {
+          resolve(code);
+          rl.close();
+        });
       });
 
-      rl.question(
-        "Please enter passcode for " + this.cfgApp.phoneNumber + ":\n",
-        num => {
-          rl.close();
-          resolve(num);
-        }
-      );
-    });
+    console.log("signInUser");
+    await MtpProxy.signInUser(phoneNum, codeInputPromise);
   }
 
   protected hashToChannels: Map<number, string> = new Map();
 
   async getDialogs(): Promise<Dialogs> {
-    const res: Dialogs = await this.client("messages.getDialogs", {
-      limit: 1000
+    const res: Dialogs = await MtpProxy.mtpInvokeApi("messages.getDialogs", {
+      limit: 1000,
+      offset_peer: { _: "inputPeerEmpty" }
     });
 
     // считываем все каналы чтобы получить их хеши
@@ -143,7 +132,7 @@ export class TgramClient implements ITgramClient {
           if (isDebug) {
             console.log("ping");
           }
-          await this.client("updates.getState", {});
+          await MtpProxy.mtpInvokeApi("updates.getState", {});
         } catch (e) {
           console.log("err", e);
         } finally {
@@ -179,19 +168,21 @@ export class TgramClient implements ITgramClient {
       channelID,
       pts
     );
-    let differenceResult = await this.client("updates.getChannelDifference", {
-      channel: {
-        _: "inputChannel",
-        channel_id: channelID,
-        access_hash: this.hashToChannels.get(channelID)
-      },
-      filter: { _: "channelMessagesFilterEmpty" },
-      pts: pts,
-      limit: 30
-    });
+    let differenceResult = await MtpProxy.mtpInvokeApi(
+      "updates.getChannelDifference",
+      {
+        channel: {
+          _: "inputChannel",
+          channel_id: channelID,
+          access_hash: this.hashToChannels.get(channelID)
+        },
+        filter: { _: "channelMessagesFilterEmpty" },
+        pts: pts,
+        limit: 30
+      }
+    );
 
     this.channelToPTS.set(channelID, differenceResult.pts);
-
     logger.info(JSON.stringify(differenceResult));
 
     let ids = _.map(differenceResult.new_messages, (mess: Message) => +mess.id);
@@ -203,7 +194,7 @@ export class TgramClient implements ITgramClient {
   }
 
   async sendMessageUser(userId: number, text: string) {
-    await this.client("messages.sendMessage", {
+    await MtpProxy.mtpInvokeApi("messages.sendMessage", {
       peer: {
         _: "inputPeerUser",
         user_id: userId
@@ -226,7 +217,7 @@ export class TgramClient implements ITgramClient {
       randomIDs.push([nextRandomInt(0xffffffff), nextRandomInt(0xffffffff)]);
     }
 
-    let res = await this.client("messages.forwardMessages", {
+    let res = await MtpProxy.mtpInvokeApi("messages.forwardMessages", {
       from_peer: {
         _: "inputPeerChannel",
         channel_id: fromChannelID,
