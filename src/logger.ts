@@ -1,12 +1,10 @@
 import * as winston from "winston";
-import {ILoggingStore} from "./store/logging";
-import * as util from "util";
-import rootStore from "./store/root";
-import {formatDate} from "./utils";
+import { formatDate } from "./utils";
 
-const {format, createLogger} = winston as any;
-const {timestamp, printf} = format as any;
+const { format, createLogger } = winston as any;
+const { timestamp, printf } = format as any;
 
+/*
 class StoreTransport extends winston.Transport {
   constructor(public store: ILoggingStore) {
     super({store});
@@ -31,9 +29,10 @@ class StoreTransport extends winston.Transport {
     callback();
   }
 }
+*/
 
 const myFormat = printf(info => {
-  return `${formatDate(info.timestamp)} ${info.level.toUpperCase()}|${info.label ? ' [' + info.label + '] ' : ''}: ${info.message}`;
+  return `${formatDate(info.timestamp)} ${info.level.toUpperCase()}|${info.label ? " [" + info.label + "] " : ""}: ${info.message}`;
 });
 
 
@@ -43,17 +42,17 @@ const logger = createLogger({
     format.splat(),
     format.simple(),
     timestamp(),
-    myFormat,
+    myFormat
   ),
 
   transports: [
     new (winston.transports.Console)({
-      level: 'debug'
-    }),
+      level: "debug"
+    })
     // new winston.transports.Console(),
     // new winston.transports.File({filename: 'combined.log'}),
-    new StoreTransport(rootStore.logStore)
+    // new StoreTransport(rootStore.logStore)
   ]
 });
 
-export default logger
+export default logger;
